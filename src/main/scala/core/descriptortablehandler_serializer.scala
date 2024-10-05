@@ -1,14 +1,173 @@
-package protoacc
+package vta.core
 
 import Chisel._
-import chisel3.{Printable}
-import freechips.rocketchip.tile._
-import org.chipsalliance.cde.config._
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.rocket.{TLBConfig, HellaCacheReq, HellaCacheResp, HellaCacheArbiter, HellaCacheIO}
-import freechips.rocketchip.util.DecoupledHelper
-import freechips.rocketchip.rocket.constants.MemoryOpConstants
-import freechips.rocketchip.tilelink._
+import chisel3.{Printable, VecInit}
+import vta.util.config._
+import vta.util.genericbundle._
+import vta.interface.axi._
+
+
+object WIRE_TYPES {
+  val WIRE_TYPE_VARINT = 0.U
+  val WIRE_TYPE_64bit = 1.U
+  val WIRE_TYPE_LEN_DELIM = 2.U
+  val WIRE_TYPE_START_GROUP = 3.U
+  val WIRE_TYPE_END_GROUP = 4.U
+  val WIRE_TYPE_32bit = 5.U
+}
+
+
+object PROTO_TYPES {
+  val TYPE_DOUBLE = 1.U
+  val TYPE_FLOAT = 2.U
+  val TYPE_INT64 = 3.U
+  val TYPE_UINT64 = 4.U
+  val TYPE_INT32 = 5.U
+  val TYPE_FIXED64 = 6.U
+  val TYPE_FIXED32 = 7.U
+  val TYPE_BOOL = 8.U
+  val TYPE_STRING = 9.U
+  val TYPE_GROUP = 10.U
+  val TYPE_MESSAGE = 11.U
+
+  val TYPE_BYTES = 12.U
+  val TYPE_UINT32 = 13.U
+
+  val TYPE_ENUM = 14.U
+  val TYPE_SFIXED32 = 15.U
+  val TYPE_SFIXED64 = 16.U
+  val TYPE_SINT32 = 17.U
+  val TYPE_SINT64 = 18.U
+
+  val TYPE_fieldwidth = 5.W
+
+
+
+  def detailedTypeToWireType(detailedType: UInt): UInt = {
+    val wire_type_lookup = VecInit(
+      WIRE_TYPES.WIRE_TYPE_VARINT,
+      WIRE_TYPES.WIRE_TYPE_64bit,
+      WIRE_TYPES.WIRE_TYPE_32bit,
+      WIRE_TYPES.WIRE_TYPE_VARINT,
+      WIRE_TYPES.WIRE_TYPE_VARINT,
+      WIRE_TYPES.WIRE_TYPE_VARINT,
+      WIRE_TYPES.WIRE_TYPE_64bit,
+      WIRE_TYPES.WIRE_TYPE_32bit,
+      WIRE_TYPES.WIRE_TYPE_VARINT,
+      WIRE_TYPES.WIRE_TYPE_LEN_DELIM,
+      WIRE_TYPES.WIRE_TYPE_START_GROUP,
+      WIRE_TYPES.WIRE_TYPE_LEN_DELIM,
+      WIRE_TYPES.WIRE_TYPE_LEN_DELIM,
+      WIRE_TYPES.WIRE_TYPE_VARINT,
+      WIRE_TYPES.WIRE_TYPE_VARINT,
+      WIRE_TYPES.WIRE_TYPE_32bit,
+      WIRE_TYPES.WIRE_TYPE_64bit,
+      WIRE_TYPES.WIRE_TYPE_VARINT,
+      WIRE_TYPES.WIRE_TYPE_VARINT,
+    )
+    wire_type_lookup(detailedType)
+  }
+
+  def detailedTypeToCppSizeLog2(detailedType: UInt): UInt =  {
+    val cpp_size = VecInit(
+        0.U,
+      3.U,
+      2.U,
+      3.U,
+      3.U,
+      2.U,
+      3.U,
+      2.U,
+      0.U,
+      3.U,
+        0.U,
+      3.U,
+      3.U,
+      2.U,
+      2.U,
+      2.U,
+      3.U,
+      2.U,
+      3.U,
+    )
+    cpp_size(detailedType)
+  }
+
+
+  def detailedTypeIsVarintSigned(detailedType: UInt): Bool = {
+    val varint_is_signed = VecInit(
+      false.B,
+      false.B,
+      false.B,
+      false.B,
+      false.B,
+      false.B,
+      false.B,
+      false.B,
+      false.B,
+      false.B,
+      false.B,
+      false.B,
+      false.B,
+      false.B,
+      false.B,
+      false.B,
+      false.B,
+      true.B,
+      true.B,
+    )
+    varint_is_signed(detailedType)
+  }
+
+
+  def detailedTypeIsPotentiallyScalar(detailedType: UInt): Bool = {
+    val varint_is_signed = VecInit(
+      false.B,
+      true.B,
+      true.B,
+      true.B,
+      true.B,
+      true.B,
+      true.B,
+      true.B,
+      true.B,
+      false.B,
+      false.B,
+      false.B,
+      false.B,
+      true.B,
+      true.B,
+      true.B,
+      true.B,
+      true.B,
+      true.B,
+    )
+    varint_is_signed(detailedType)
+  }
+
+ val _lookup = VecInit(
+
+0.U,
+0.U,
+0.U,
+0.U,
+0.U,
+0.U,
+0.U,
+0.U,
+0.U,
+0.U,
+0.U,
+0.U,
+0.U,
+0.U,
+0.U,
+0.U,
+0.U,
+0.U,
+0.U,
+    )
+}
 
 class SerializerInfoBundle extends Bundle {
   val descriptor_table_addr = UInt(64.W)
@@ -58,11 +217,10 @@ class DescrToHandlerBundle extends Bundle {
 }
 
 
-class SerDescriptorTableHandler()(implicit p: Parameters) extends Module
-  with MemoryOpConstants {
+class SerDescriptorTableHandler()(implicit p: Parameters) extends Module {
 
   val io = IO(new Bundle {
-    val serializer_cmd_in = Decoupled(new SerializerInfoBundle).flip
+    val serializer_cmd_in = Flipped(Decoupled(new SerializerInfoBundle))
     val ser_field_handler_output = Decoupled(new DescrToHandlerBundle)
 
     val l2helperUser1 = new L1MemHelperBundle
@@ -71,10 +229,13 @@ class SerDescriptorTableHandler()(implicit p: Parameters) extends Module
 
   io.l2helperUser1.req.valid := false.B
   io.l2helperUser1.resp.ready := false.B
-  io.l2helperUser1.req.bits.cmd := M_XRD
+  // io.l2helperUser1.req.bits.cmd := M_XRD
+  io.l2helperUser1.req.bits.cmd := 0.U(1.W)
+
   io.l2helperUser2.req.valid := false.B
   io.l2helperUser2.resp.ready := false.B
-  io.l2helperUser2.req.bits.cmd := M_XRD
+  // io.l2helperUser2.req.bits.cmd := M_XRD
+  io.l2helperUser2.req.bits.cmd := 0.U(1.W)
 
   val depth = RegInit(0.U(ProtoaccParams.MAX_NESTED_LEVELS_WIDTH.W))
   assert(depth < ProtoaccParams.MAX_NESTED_LEVELS.U, "FAIL. TOO MANY NESTED LEVELS")
@@ -167,10 +328,10 @@ class SerDescriptorTableHandler()(implicit p: Parameters) extends Module
       io.l2helperUser1.req.valid := busy_toplevel && hasbits_request_meta_Q.io.enq.ready
       when (hasbits_request_meta_Q.io.enq.ready && busy_toplevel && io.l2helperUser1.req.ready) {
         hasBitsLoaderState := s_hasBitsLoader_HasBitsLoad
-        ProtoaccLogger.logInfo("[serdescriptor] dispatch is_submessage load, relfieldno %d, arrayindex %d, reqaddr 0x%x\n",
-          Wire(current_has_bits_next_bitoffset),
-          hasbits_array_index,
-          is_submessage_request_address)
+        // ProtoaccLogger.logInfo("[serdescriptor] dispatch is_submessage load, relfieldno %d, arrayindex %d, reqaddr 0x%x\n",
+        //   Wire(current_has_bits_next_bitoffset),
+        //   hasbits_array_index,
+        //   is_submessage_request_address)
       }
     }
     is (s_hasBitsLoader_HasBitsLoad) {
@@ -180,7 +341,7 @@ class SerDescriptorTableHandler()(implicit p: Parameters) extends Module
       when (io.l2helperUser1.req.ready) {
         hasBitsLoaderState := s_hasBitsLoader_WaitToAdvance
         ProtoaccLogger.logInfo("[serdescriptor] dispatch hasbits load, relfieldno %d, arrayindex %d, reqaddr 0x%x\n",
-          Wire(current_has_bits_next_bitoffset),
+          current_has_bits_next_bitoffset,
           hasbits_array_index,
           hasbits_request_address)
       }
@@ -260,7 +421,7 @@ class SerDescriptorTableHandler()(implicit p: Parameters) extends Module
   switch (hasBitsCONSUMERState) {
     is (s_hasBitsCONSUMER_AcceptIsSubmessage) {
       io.l2helperUser1.resp.ready := (hasBitsLoaderState === s_hasBitsLoader_WaitToAdvance) && hasbits_request_meta_Q.io.deq.valid
-      when (io.l2helperUser1.resp.fire()) {
+      when (io.l2helperUser1.resp.fire) {
         val internal_max_index = hasbits_request_meta_Q.io.deq.bits.has_bits_max_bitoffset % 32.U
         val truncate_shamt = 31.U - internal_max_index
         val is_submessage_value_resp_partial = Wire(UInt(width=32.W))

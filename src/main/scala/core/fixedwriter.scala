@@ -1,13 +1,10 @@
-package protoacc
+package vta.core
 
 import Chisel._
 import chisel3.{Printable}
-import freechips.rocketchip.tile._
-import org.chipsalliance.cde.config._
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.rocket.{TLBConfig}
-import freechips.rocketchip.util.DecoupledHelper
-import freechips.rocketchip.rocket.constants.MemoryOpConstants
+import vta.util.config._
+import vta.util.genericbundle._
+import vta.interface.axi._
 
 class FixedWriterRequest extends Bundle {
   val write_width = UInt(3.W)
@@ -16,10 +13,9 @@ class FixedWriterRequest extends Bundle {
 }
 
 
-class FixedWriter()(implicit p: Parameters) extends Module
-  with MemoryOpConstants {
+class FixedWriter()(implicit p: Parameters) extends Module {
   val io = IO(new Bundle {
-    val fixed_writer_request = Decoupled(new FixedWriterRequest).flip
+    val fixed_writer_request = Flipped(Decoupled(new FixedWriterRequest))
 
     val l1helperUser = new L1MemHelperBundle
     val no_writes_inflight = Output(Bool())
@@ -29,7 +25,8 @@ class FixedWriter()(implicit p: Parameters) extends Module
   io.l1helperUser.req <> l1reqQueue.io.deq
 
 
-  l1reqQueue.io.enq.bits.cmd := M_XWR
+  // l1reqQueue.io.enq.bits.cmd := M_XWR
+  l1reqQueue.io.enq.bits.cmd := 1.U
 
   io.no_writes_inflight := io.l1helperUser.no_memops_inflight && (l1reqQueue.io.count === 0.U)
 
@@ -40,6 +37,5 @@ class FixedWriter()(implicit p: Parameters) extends Module
   l1reqQueue.io.enq.valid := io.fixed_writer_request.valid
   io.fixed_writer_request.ready := l1reqQueue.io.enq.ready
 
-  io.l1helperUser.resp.ready := Bool(true)
+  io.l1helperUser.resp.ready := true.B
 }
-
