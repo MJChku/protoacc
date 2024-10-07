@@ -1,0 +1,48 @@
+-include Makefile.local
+
+# SIMBRICKS_LIB ?= $(abspath ../../../../lib)
+
+bin_vta := protoacc_sim
+
+verilator_dir := obj_dir
+verilator_src := $(verilator_dir)/VVTAShell.cc
+
+srcs := protoacc_sim.cc
+vsrcs := ../build/chisel/VTA.DefaultVTAConfig.sv
+VERILATOR ?= verilator
+# CFLAGS := -DVTA_SIMBRICKS -I$(SIMBRICKS_LIB) -Wall -O2 -fno-omit-frame-pointer
+CFLAGS := -Wall -O2 -fno-omit-frame-pointer
+CFLAGS += -std=c++17
+# LDFLAGS := -L$(SIMBRICKS_LIB)/simbricks/nicif -L$(SIMBRICKS_LIB)
+LDFLAGS :=
+
+VFLAGS := --cc -O3 --trace
+VFLAGS += +define+RANDOMIZE_GARBAGE_ASSIGN
+VFLAGS += +define+RANDOMIZE_REG_INIT
+VFLAGS += +define+RANDOMIZE_MEM_INIT
+VFLAGS += --x-assign unique
+VFLAGS += --output-split 20000
+VFLAGS += --output-split-cfuncs 20000
+CHISEL_BUILD_DIR := $(abspath ../build/chisel/)
+
+all: $(bin_vta)
+
+$(bin_vta): $(OBJS)
+
+$(verilator_src): $(vsrcs)
+	$(VERILATOR) $(VFLAGS) \
+	    -CFLAGS "$(CFLAGS)" \
+	    --top-module VTAShell \
+	    --Mdir $(verilator_dir) \
+		"-I$(CHISEL_BUILD_DIR)" \
+	    $(vsrcs) --exe $(abspath $(srcs))
+
+$(bin_vta): $(srcs) $(vsrcs) $(verilator_src)
+	$(MAKE) -C $(verilator_dir) -f VVTAShell.mk
+	cp $(verilator_dir)/VVTAShell $@
+
+$(vsrcs):
+	$(MAKE) -C ../hardware/ verilog CONFIG=DefaultProtoaccConfig
+clean:
+	rm -rf $(bin_vta) $(verilator_dir) ../build
+.PHONY: all clean
