@@ -171,14 +171,14 @@ class SerFieldHandler(logPrefix: String)(implicit p: Parameters) extends Module 
         src_data_addr_reg := io.ops_in.bits.src_data_addr
 
         ProtoaccLogger.logInfo(logPrefix + " S_WAIT_CMD: accept op: src_data_addr 0x%x, src_data_type %d, is_repeated 0x%x, is_packed 0x%x, field_number %d, wire_type %d, cpp_size_log2 %d, is_varint_signed %d\n",
-          Wire(io.ops_in.bits.src_data_addr),
-          Wire(io.ops_in.bits.src_data_type),
-          Wire(is_repeated),
-          Wire(is_packed),
-          Wire(io.ops_in.bits.field_number),
-          Wire(wire_type),
-          Wire(cpp_size_log2),
-          Wire(is_varint_signed)
+          io.ops_in.bits.src_data_addr,
+          io.ops_in.bits.src_data_type,
+          is_repeated,
+          is_packed,
+          io.ops_in.bits.field_number,
+          wire_type,
+          cpp_size_log2,
+          is_varint_signed
         )
 
 
@@ -418,7 +418,7 @@ class SerFieldHandler(logPrefix: String)(implicit p: Parameters) extends Module 
     }
 
     is (S_STRING_LOADDATA) {
-      ProtoaccLogger.logInfo(logPrefix + " S_STRING_LOADDATA\n")
+      // ProtoaccLogger.logInfo(logPrefix + " S_STRING_LOADDATA\n")
 
       io.memread.req.bits.addr := base_addr_bytes_aligned_reg + (words_to_load_minus_one_reg << 4)
       io.memread.req.valid := words_to_load_reg =/= 0.U

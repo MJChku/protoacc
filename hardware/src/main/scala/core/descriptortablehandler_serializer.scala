@@ -328,10 +328,10 @@ class SerDescriptorTableHandler()(implicit p: Parameters) extends Module {
       io.l2helperUser1.req.valid := busy_toplevel && hasbits_request_meta_Q.io.enq.ready
       when (hasbits_request_meta_Q.io.enq.ready && busy_toplevel && io.l2helperUser1.req.ready) {
         hasBitsLoaderState := s_hasBitsLoader_HasBitsLoad
-        // ProtoaccLogger.logInfo("[serdescriptor] dispatch is_submessage load, relfieldno %d, arrayindex %d, reqaddr 0x%x\n",
-        //   Wire(current_has_bits_next_bitoffset),
-        //   hasbits_array_index,
-        //   is_submessage_request_address)
+        ProtoaccLogger.logInfo("[serdescriptor] dispatch is_submessage load, relfieldno %d, arrayindex %d, reqaddr 0x%x\n",
+          current_has_bits_next_bitoffset,
+          hasbits_array_index,
+          is_submessage_request_address)
       }
     }
     is (s_hasBitsLoader_HasBitsLoad) {

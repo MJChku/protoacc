@@ -32,7 +32,7 @@ import vta.interface.axi._
 case class VMEParams
   (val nReadClients: Int = 8,
     val nWriteClients: Int = 1,
-    val clientBits : Int = 3,
+    val clientBits : Int = 4,
     val RequestQueueDepth : Int = 16,
     val vmeParams : Int = 18,
     val clientCmdQueueDepth : Int = 1,
@@ -41,8 +41,8 @@ case class VMEParams
 
   val RequestQueueMaskBits : Int = RequestQueueDepth.toInt
 
-  require(nReadClients > 0,
-  s"\n\n[VTA] [VMEParams] nReadClients must be larger than 0\n\n")
+  require(nReadClients == 8,
+  s"\n\n[VTA] [VMEParams] nReadClients must be 8\n\n")
   require(
     nWriteClients == 1,
     s"\n\n[VTA] [VMEParams] nWriteClients must be 1, only one-write-client support atm\n\n")

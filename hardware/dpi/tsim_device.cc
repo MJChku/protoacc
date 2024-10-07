@@ -41,6 +41,8 @@ static VTASimDPIFunc _sim_dpi = nullptr;
 static VTAHostDPIFunc _host_dpi = nullptr;
 static VTAMemDPIFunc _mem_dpi = nullptr;
 
+
+
 void VTASimDPI(dpi8_t* wait,
                dpi8_t* exit) {
   assert(_sim_dpi != nullptr);

@@ -289,6 +289,7 @@ class SerMemwriter()(implicit p: Parameters) extends Module {
   when (write_ptr_override && io.l2io.req.ready) {
     backend_string_ptr_output_addr := backend_string_ptr_output_addr + 8.U
     messages_completed := messages_completed + 1.U
+    ProtoaccLogger.logInfo("[memwriter-serializer] messages_completed %d\n", messages_completed)
   }
 
   when (write_ptrs_Q.io.deq.fire) {

@@ -135,7 +135,6 @@ import vta.shell._
 
 
 // fix later
-
 class CommandRouterSerializer()(implicit p: Parameters) extends Module {
   val io = IO(new Bundle {
     val vcr = new VCRClient
@@ -150,6 +149,20 @@ class CommandRouterSerializer()(implicit p: Parameters) extends Module {
     val completed_toplevel_bufs = Input(UInt(64.W))
   })
 
+   // Operation control logic
+  val operation_in_progress = RegInit(false.B)
+  val track_number_dispatched_parse_commands = RegInit(0.U(64.W))
+
+
+  // Create a Bundle for the fields
+  class DescriptorInfo extends Bundle {
+    val descriptor_table_addr = UInt(64.W)
+    val cpp_obj_addr = UInt(64.W)
+    val has_bits_base_offset_only = UInt(64.W)
+    val min_fieldno = UInt(32.W)
+    val max_fieldno = UInt(32.W)
+  }
+
   // Extract control signals from VCR
   val descriptor_table_addr        = io.vcr.ptrs(0)
   val cpp_obj_addr                 = io.vcr.ptrs(1)
@@ -159,38 +172,58 @@ class CommandRouterSerializer()(implicit p: Parameters) extends Module {
   val min_fieldno                  = io.vcr.vals(0)
   val max_fieldno                  = io.vcr.vals(1)
 
-  io.serializer_info_bundle_out.valid := false.B
-  io.serializer_info_bundle_out.bits.has_bits_base_offset_only := has_bits_base_offset_only
-  io.serializer_info_bundle_out.bits.min_fieldno := min_fieldno
-  io.serializer_info_bundle_out.bits.max_fieldno := max_fieldno
-  io.serializer_info_bundle_out.bits.descriptor_table_addr := descriptor_table_addr
-  io.serializer_info_bundle_out.bits.cpp_obj_addr := cpp_obj_addr
+  // Create the structure (DescriptorInfo)
+  val descriptorInfo = Wire(new DescriptorInfo)
+  descriptorInfo.descriptor_table_addr := descriptor_table_addr
+  descriptorInfo.cpp_obj_addr := cpp_obj_addr
+  descriptorInfo.has_bits_base_offset_only := has_bits_base_offset_only
+  descriptorInfo.min_fieldno := min_fieldno
+  descriptorInfo.max_fieldno := max_fieldno
+
+  // Create a Queue with depth 2
+  val descriptorQueue = Module(new Queue(new DescriptorInfo, 2))
+
+  // Default values for the queue
+  descriptorQueue.io.enq.valid := false.B
+  descriptorQueue.io.enq.bits := descriptorInfo
+
+  // Enqueue the structure when launch is true and there's space in the queue
+  when(io.vcr.launch && descriptorQueue.io.enq.ready && !operation_in_progress) {
+    descriptorQueue.io.enq.valid := true.B
+  }
+
+  // Output logic (drive outputs from the queue when there's valid data)
+  io.stringalloc_region_addr_tail.valid := descriptorQueue.io.deq.valid
+  io.stringptr_region_addr.valid := descriptorQueue.io.deq.valid
+  
+  io.serializer_info_bundle_out.valid := descriptorQueue.io.deq.valid
+  io.serializer_info_bundle_out.bits.has_bits_base_offset_only := descriptorQueue.io.deq.bits.has_bits_base_offset_only
+  io.serializer_info_bundle_out.bits.min_fieldno := descriptorQueue.io.deq.bits.min_fieldno
+  io.serializer_info_bundle_out.bits.max_fieldno := descriptorQueue.io.deq.bits.max_fieldno
+  io.serializer_info_bundle_out.bits.descriptor_table_addr := descriptorQueue.io.deq.bits.descriptor_table_addr
+  io.serializer_info_bundle_out.bits.cpp_obj_addr := descriptorQueue.io.deq.bits.cpp_obj_addr
+
+  // Dequeue when the output is ready
+  descriptorQueue.io.deq.ready := io.serializer_info_bundle_out.ready
 
   // Assign values to outputs
   io.stringalloc_region_addr_tail.bits := stringalloc_region_addr_tail
   io.stringptr_region_addr.bits := stringptr_region_addr
 
-  // Operation control logic
-  val operation_in_progress = RegInit(false.B)
-  val track_number_dispatched_parse_commands = RegInit(0.U(64.W))
-
+ 
   when(io.vcr.launch && !operation_in_progress) {
-    io.stringalloc_region_addr_tail.valid := true.B
-    io.stringptr_region_addr.valid := true.B
-    io.serializer_info_bundle_out.valid := true.B
     operation_in_progress := true.B
     track_number_dispatched_parse_commands := track_number_dispatched_parse_commands + 1.U
-    // Start your operation using the control signals
+    ProtoaccLogger.logInfo("track_number_dispatched_parse_commands %d\n", track_number_dispatched_parse_commands)
   }
 
-
   val do_check_completion_fire = DecoupledHelper(
+    operation_in_progress,
     io.no_writes_inflight,
-    io.completed_toplevel_bufs === track_number_dispatched_parse_commands,
+    io.completed_toplevel_bufs === track_number_dispatched_parse_commands
   )
 
-  // Define operation completion condition
-  val operation_done = do_check_completion_fire.fire()/* Your condition indicating operation completion */
+  val operation_done = do_check_completion_fire.fire()
 
   when(operation_done) {
     operation_in_progress := false.B
@@ -200,7 +233,7 @@ class CommandRouterSerializer()(implicit p: Parameters) extends Module {
   io.vcr.finish := operation_done
 
   // Optional logging
-  when(io.vcr.launch) {
+  when(io.vcr.launch && !operation_in_progress) {
     ProtoaccLogger.logInfo("VCR Launch signal received, starting operation\n")
   }
   when(operation_done) {

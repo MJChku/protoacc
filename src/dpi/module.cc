@@ -30,12 +30,14 @@
 #include <condition_variable>
 #include <fstream>
 
+#include "../vmem/virtual_memory.h"
+
 // Include verilator array access functions code
 #include "verilated.cpp"
 #include "verilated_dpi.cpp"
-#include "verilated_threads.cpp"
+// #include "verilated_threads.cpp"
 
-namespace vta {
+namespace protoacc {
 namespace dpi {
 
 typedef void* DeviceHandle;
@@ -166,6 +168,7 @@ bool SimDevice::GetExitStatus() {
 }
 
 void HostDevice::PushRequest(uint8_t opcode, uint8_t addr, uint32_t value) {
+  // printf("PushRequest %d %d %x\n", opcode, addr, value);
   HostRequest r;
   r.opcode = opcode;
   r.addr = addr;
@@ -201,7 +204,7 @@ void MemDevice::SetRequest(
 
   std::lock_guard<std::mutex> lock(mutex_);
   if(rd_req_addr !=0 ){
-    void * rd_vaddr =  0; //vta::vmem::VirtualMemoryManager::Global()->GetAddr(rd_req_addr);
+    void * rd_vaddr =  protoacc::vmem::VirtualMemoryManager::Global()->GetAddr(rd_req_addr, rd_req_len+1);
     if(rd_req_valid == 1) {
       rlen_ = rd_req_len + 1;
       rid_  = rd_req_id;
@@ -210,7 +213,7 @@ void MemDevice::SetRequest(
   }
 
   if(wr_req_addr != 0){
-    void * wr_vaddr = 0; // vta::vmem::VirtualMemoryManager::Global()->GetAddr(wr_req_addr);
+    void * wr_vaddr = malloc(wr_req_len*8+8); //protoacc::vmem::VirtualMemoryManager::Global()->GetAddr(wr_req_addr, wr_req_len+1);
     if (wr_req_valid == 1) {
       wlen_ = wr_req_len + 1;
       waddr_ = reinterpret_cast<uint64_t*>(wr_vaddr);
@@ -280,10 +283,12 @@ class DPIModule final : public DPIModuleNode {
     assert(finit != nullptr);
     finit(this, VTASimDPI, VTAHostDPI, VTAMemDPI);
     ftsim_ = reinterpret_cast<VTADPISimFunc>(GetSymbol("VTADPISim"));
+    printf("VTADPISim addr %p\n", ftsim_);
     assert(ftsim_ != nullptr);
   }
 
   void SimLaunch() {
+    printf("VTADPISim SimLaunch\n");
     auto frun = [this]() {
       (*ftsim_)();
     };
@@ -291,10 +296,12 @@ class DPIModule final : public DPIModuleNode {
   }
 
   void SimWait() {
+    printf("SimWait\n");
     sim_device_.Wait();
   }
 
   void SimResume() {
+    printf("SimResume\n");
     sim_device_.Resume();
   }
 
@@ -304,6 +311,7 @@ class DPIModule final : public DPIModuleNode {
   }
 
   void WriteReg(int addr, uint32_t value) {
+    printf("WriteReg %d %x\n", addr, value);
     host_device_.PushRequest(1, addr, value);
   }
 
@@ -342,6 +350,7 @@ class DPIModule final : public DPIModuleNode {
     *req_opcode = r->opcode;
     *req_addr = r->addr;
     *req_value = r->value;
+    // printf("HostDPI %d %d %x\n", r->opcode, r->addr, r->value);
     if (resp_valid) {
       host_device_.PushResponse(resp_value);
     }
@@ -456,26 +465,6 @@ class DPIModule final : public DPIModuleNode {
   }
 
  private:
-  // Platform dependent handling.
-#if defined(_WIN32)
-  // library handle
-  HMODULE lib_handle_{nullptr};
-  // Load the library
-  void Load(const std::string& name) {
-    // use wstring version that is needed by LLVM.
-    std::wstring wname(name.begin(), name.end());
-    lib_handle_ = LoadLibraryW(wname.c_str());
-    assert(lib_handle_ != nullptr)
-        << "Failed to load dynamic shared library " << name;
-  }
-  void* GetSymbol(const char* name) {
-    return reinterpret_cast<void*>(
-        GetProcAddress(lib_handle_, (LPCSTR)name)); // NOLINT(*)
-  }
-  void Unload() {
-    FreeLibrary(lib_handle_);
-  }
-#else
   // Library handle
   void* lib_handle_{nullptr};
   // load the library
@@ -488,9 +477,9 @@ class DPIModule final : public DPIModuleNode {
    
   }
   void* GetSymbol(const char* name) {
-    printf("handle_%p\n", lib_handle_);
+    printf("GetSymobol handle_%p\n", lib_handle_);
     void* sym =(void*) dlsym(lib_handle_, name);
-     const char* dlsym_error = dlerror();
+    const char* dlsym_error = dlerror();
     if (dlsym_error) {
       throw std::runtime_error("Failed to load symbol: " + std::string(dlsym_error));
     }
@@ -499,7 +488,6 @@ class DPIModule final : public DPIModuleNode {
   void Unload() {
     dlclose(lib_handle_);
   }
-#endif
 };
 
 Module DPIModuleNode::Load(std::string dll_name) {

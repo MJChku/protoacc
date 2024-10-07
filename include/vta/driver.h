@@ -49,7 +49,7 @@ extern "C" {
 #define VTA_PAGE_BYTES (1 << VTA_PAGE_BITS)
 
 /*! \brief Device resource context  */
-typedef void * VTADeviceHandle;
+typedef void * ProtoaccDeviceHandle;
 
 /*! \brief physical address */
 #ifdef USE_VTA64
@@ -58,17 +58,21 @@ typedef uint64_t vta_phy_addr_t;
 typedef uint32_t vta_phy_addr_t;
 #endif
 
+
+void ProtoaccMemAlloc(int pid);
+
+void ProtoaccMemFree();
 /*!
  * \brief Allocate a device resource handle
  * \return The device handle.
  */
-VTADeviceHandle VTADeviceAlloc();
+ProtoaccDeviceHandle ProtoaccDeviceAlloc();
 
 /*!
  * \brief Free a device handle
  * \param handle The device handle to be freed.
  */
-void VTADeviceFree(VTADeviceHandle handle);
+void ProtoaccDeviceFree(ProtoaccDeviceHandle handle);
 
 /*!
  * \brief Launch the instructions block until done.
@@ -79,10 +83,16 @@ void VTADeviceFree(VTADeviceHandle handle);
  *
  * \return 0 if running is successful, 1 if timeout.
  */
-int VTADeviceRun(VTADeviceHandle device,
-                 vta_phy_addr_t insn_phy_addr,
-                 uint32_t insn_count,
-                 uint32_t wait_cycles);
+int ProtoaccDeviceRun(
+                ProtoaccDeviceHandle handle,
+                uint64_t descriptor_table_addr,
+                uint64_t cpp_obj_addr,
+                uint64_t has_bits_base_offset_only,
+                uint64_t stringalloc_region_addr_tail,
+                uint64_t stringptr_region_addr,
+                uint32_t min_fieldno,
+                uint32_t max_fieldno
+                 );
 
 void vta_tsim_init();
 

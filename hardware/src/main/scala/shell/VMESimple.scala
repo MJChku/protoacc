@@ -409,7 +409,7 @@ class VME(implicit p: Parameters) extends Module {
   vmeTag_array_wr_data := default_tag
 
   // Last assign wins so do this in reverse order
-  for { i <- 4 to 0 by -1} {
+  for { i <- (nReadClients-1) to 0 by -1} {
     when(VMEcmd_Qs(i).io.deq.ready){
       io.mem.ar.bits.addr := VMEcmd_Qs(i).io.deq.bits.addr
       io.mem.ar.bits.len  := VMEcmd_Qs(i).io.deq.bits.len

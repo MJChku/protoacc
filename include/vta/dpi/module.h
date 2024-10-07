@@ -29,7 +29,7 @@
 #include <stdexcept>
 #include <string>
 
-namespace vta {
+namespace protoacc {
 namespace dpi {
 
 class Module {
@@ -52,8 +52,8 @@ class Module {
   T GetSymbol(const std::string& symbol);
 
   // Provide operator-> to derived classes for easy access
-  virtual Module* operator->() {
-    return this;
+  virtual void* operator->() {
+    return this->handle_;
   }
 
  private:

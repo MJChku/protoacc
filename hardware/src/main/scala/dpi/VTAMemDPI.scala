@@ -129,7 +129,7 @@ class VTAMemDPIToAXI(debug: Boolean = true)(implicit val p: Parameters) extends 
   val wstate = RegInit(wIdle)
   //Read Interface to Memory Manager
   val counter = RegInit(0.U(32.W))
-  val dpiDelay = 16.U
+  val dpiDelay = 2.U
   val dpiReqQueue = Module(new Queue(new MemRequest, 256))
   dpiReqQueue.io.enq.valid     := io.axi.ar.valid  & dpiReqQueue.io.enq.ready
   dpiReqQueue.io.enq.bits.addr := io.axi.ar.bits.addr

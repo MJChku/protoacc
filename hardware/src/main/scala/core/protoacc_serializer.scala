@@ -173,14 +173,14 @@ class ProtoAccelSerializer()(implicit p: Parameters) extends Module {
     val vme = new VMEMaster
   })
 
-  val mem_descr1 = Module(new L1ReadMemHelper(printInfo="[m_serdescr1]", queueRequests=true, queueResponses=true))
-  val mem_descr2 = Module(new L1ReadMemHelper(printInfo="[m_serdescr2]", queueRequests=true, queueResponses=true))  
-  val mem_serfieldhandler1 = Module(new L1ReadMemHelper(printInfo="[m_serfieldhandler1]", queueRequests=true, queueResponses=true))
-  val mem_serfieldhandler2 = Module(new L1ReadMemHelper(printInfo="[m_serfieldhandler2]", queueRequests=true, queueResponses=true))
-  val mem_serfieldhandler3 = Module(new L1ReadMemHelper(printInfo="[m_serfieldhandler3]", queueRequests=true, queueResponses=true))
-  val mem_serfieldhandler4 = Module(new L1ReadMemHelper(printInfo="[m_serfieldhandler4]", queueRequests=true, queueResponses=true))
-  val mem_serfieldhandler5 = Module(new L1ReadMemHelper(printInfo="[m_serfieldhandler5]", queueRequests=true, queueResponses=true))
-  val mem_serfieldhandler6 = Module(new L1ReadMemHelper(printInfo="[m_serfieldhandler6]", queueRequests=true, queueResponses=true))
+  val mem_descr1 = Module(new L1ReadMemHelper(clientTag=0.U, printInfo="[m_serdescr1]", queueRequests=true, queueResponses=true))
+  val mem_descr2 = Module(new L1ReadMemHelper(clientTag=1.U, printInfo="[m_serdescr2]", queueRequests=true, queueResponses=true))  
+  val mem_serfieldhandler1 = Module(new L1ReadMemHelper(clientTag=2.U, printInfo="[m_serfieldhandler1]", queueRequests=true, queueResponses=true))
+  val mem_serfieldhandler2 = Module(new L1ReadMemHelper(clientTag=3.U, printInfo="[m_serfieldhandler2]", queueRequests=true, queueResponses=true))
+  val mem_serfieldhandler3 = Module(new L1ReadMemHelper(clientTag=4.U, printInfo="[m_serfieldhandler3]", queueRequests=true, queueResponses=true))
+  val mem_serfieldhandler4 = Module(new L1ReadMemHelper(clientTag=5.U, printInfo="[m_serfieldhandler4]", queueRequests=true, queueResponses=true))
+  val mem_serfieldhandler5 = Module(new L1ReadMemHelper(clientTag=6.U, printInfo="[m_serfieldhandler5]", queueRequests=true, queueResponses=true))
+  val mem_serfieldhandler6 = Module(new L1ReadMemHelper(clientTag=7.U, printInfo="[m_serfieldhandler6]", queueRequests=true, queueResponses=true))
 
 
   val mem_serwriter = Module(new L1WriteMemHelper(printInfo="[m_serwriter]", queueRequests=true))

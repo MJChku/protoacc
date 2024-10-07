@@ -156,6 +156,7 @@ class VCR(implicit p: Parameters) extends Module {
   io.host.r.bits.data := rdata
   io.host.r.bits.resp := 0.U
 
+  // this is the control register
   when(io.vcr.finish) {
     reg(0) := "b_10".U
   }.elsewhen(io.host.w.fire && addr(0).U === waddr) {
