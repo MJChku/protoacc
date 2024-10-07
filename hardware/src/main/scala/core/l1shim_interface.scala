@@ -41,6 +41,7 @@ class L1ReadMemHelper(
     val userif = Flipped(new L1MemHelperBundle)
     val vme_rd = new VMEReadMaster
   })
+  //VME doesnt stop on not ready
 
   // Define request and response queues as DecoupledIO interfaces
   val reqQueue = Wire(Flipped(Decoupled(new L1ReqInternal)))
@@ -66,11 +67,12 @@ class L1ReadMemHelper(
   }
 
   // Outstanding read operations counter
-  val outstandingReads = RegInit(0.U(log2Ceil(4 + 1).W))
-  io.userif.no_memops_inflight := (outstandingReads === 0.U)
+  val outstandingReads = RegInit(0.U(64.W))
+  val returnedReads = RegInit(0.U(64.W))
+  io.userif.no_memops_inflight := (outstandingReads === returnedReads)
 
   // Define two queues to store 64-bit vme_rd data, wrapped in a Vec
-  val vmeDataQueues = VecInit(Seq.fill(2)(Module(new Queue(UInt(64.W), 4)).io))
+  val vmeDataQueues = VecInit(Seq.fill(2)(Module(new Queue(UInt(64.W), 8)).io))
   
   // Register to track which queue to push to and which to pop from
   val activeQueue = RegInit(0.U(1.W)) // 0 or 1, indicating which queue to push to or pop from
@@ -88,15 +90,22 @@ class L1ReadMemHelper(
     Mux(size === 4.U, 1.U, 0.U) // If size = 4 (16 bytes), len = 1 (2 beats), else len = 0 (1 beat)
   }
 
+  val issue_submessage_request_address = DecoupledHelper(
+    reqQueue.valid,
+    (outstandingReads - returnedReads) < 4.U,
+    io.vme_rd.cmd.ready
+  )
   // Handle read requests
-  io.vme_rd.cmd.valid := reqQueue.valid
+  io.vme_rd.cmd.valid := issue_submessage_request_address.fire(io.vme_rd.cmd.ready)
+  reqQueue.ready := issue_submessage_request_address.fire(reqQueue.valid)
+
   io.vme_rd.cmd.bits.addr := reqQueue.bits.addr
   io.vme_rd.cmd.bits.len := calcAxiLen(reqQueue.bits.size)
   io.vme_rd.cmd.bits.tag := clientTag
-  reqQueue.ready := io.vme_rd.cmd.ready
+  // because VME doesn't stop on data resp not ready, we have to control the inflight requests
 
   when(reqQueue.fire) {
-    ProtoaccLogger.logInfo("[L1ReadMem] reqQueue fire addr 0x%x\n", reqQueue.bits.addr)
+    ProtoaccLogger.logInfo("[L1ReadMem] reqQueue fire addr 0x%x, size %d \n", reqQueue.bits.addr, reqQueue.bits.size)
   }
 
   // ready is ignored
@@ -105,7 +114,7 @@ class L1ReadMemHelper(
 
   when(io.vme_rd.cmd.fire) {
     outstandingReads := outstandingReads + 1.U
-    ProtoaccLogger.logInfo("[L1ReadMem] fire read cmd\n")
+    ProtoaccLogger.logInfo("[L1ReadMem] fire read cmd; outstandingreads %d\n", outstandingReads)
   }
 
   // Handle incoming data from vme_rd and enqueue into the active queue
@@ -135,6 +144,7 @@ class L1ReadMemHelper(
 
   respQueue.bits.data := Mux(outstandingReqQueue.deq.bits.size === 4.U, Cat(secondBeat, firstBeat), Cat(0.U(64.W), lowerData) ) 
   
+
   when(vmeDataQueues(0).enq.fire){
     ProtoaccLogger.logInfo("[L1ReadMem] vmeDataQueues(0) enq data 0x%x\n", io.vme_rd.data.bits.data)
   }
@@ -150,21 +160,23 @@ class L1ReadMemHelper(
   }
 
   when(respQueue.fire) {
+    // outstandingReads := outstandingReads - 1.U
+    returnedReads := returnedReads + 1.U
     // Switch between queues for the next data beat
     when(outstandingReqQueue.deq.bits.size === 4.U) {
-      ProtoaccLogger.logInfo("[L1ReadMem] reading 128-bit data at address  0x%x", outstandingReqQueue.deq.bits.addr)
+      ProtoaccLogger.logInfo("[L1ReadMem] reading 128-bit data at address  0x%x; returnedReads %d", outstandingReqQueue.deq.bits.addr, returnedReads)
       popQueue := popQueue
     }.elsewhen(outstandingReqQueue.deq.bits.size <= 3.U){
-      ProtoaccLogger.logInfo("[L1ReadMem] reading <= 128-bit data at address  0x%x", outstandingReqQueue.deq.bits.addr)
+      ProtoaccLogger.logInfo("[L1ReadMem] reading <= 128-bit data at address  0x%x; returnedReads %d", outstandingReqQueue.deq.bits.addr, returnedReads)
 
       popQueue := ~popQueue
     }
   }
 
   // Handle completion of read responses
-  when (io.vme_rd.data.valid && io.vme_rd.data.bits.last) {
-    outstandingReads := outstandingReads - 1.U
-  }
+  // when (io.vme_rd.data.valid && io.vme_rd.data.bits.last){
+  //   outstandingReads := outstandingReads - 1.U
+  // }
 }
 
 
