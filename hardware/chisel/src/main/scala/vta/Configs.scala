@@ -37,3 +37,8 @@ object TestDefaultProtoaccConfig extends App {
   implicit val p: Parameters = new DefaultProtoaccConfig
   (new chisel3.stage.ChiselStage).emitSystemVerilog(new Test, args)
 }
+
+object DefaultProtoaccConfig extends App {
+  implicit val p: Parameters = new DefaultProtoaccConfig
+  (new chisel3.stage.ChiselStage).emitSystemVerilog(new VTAShell, args)
+}

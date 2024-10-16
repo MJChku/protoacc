@@ -1,22 +1,18 @@
 -include Makefile.local
 
-# SIMBRICKS_LIB ?= $(abspath ../../../../lib)
-
-bin_vta := protoacc_sim
+bin_vta := protoacc_simbricks
 
 verilator_dir := obj_dir
 verilator_src := $(verilator_dir)/VVTAShell.cc
 
-srcs := protoacc_sim.cc
-vsrcs := ../build/chisel/VTA.DefaultVTAConfig.sv
+srcs := protoacc_simbricks.cc
+vsrcs := ../build/chisel/VTA.DefaultProtoaccConfig.sv
 VERILATOR ?= verilator
-# CFLAGS := -DVTA_SIMBRICKS -I$(SIMBRICKS_LIB) -Wall -O2 -fno-omit-frame-pointer
-CFLAGS := -Wall -O2 -fno-omit-frame-pointer
+CFLAGS := -DPROTOACC_SIMBRICKS -I$(abspath ../../../../lib) -Wall -O2 -fno-omit-frame-pointer
 CFLAGS += -std=c++17
-# LDFLAGS := -L$(SIMBRICKS_LIB)/simbricks/nicif -L$(SIMBRICKS_LIB)
-LDFLAGS :=
-
-VFLAGS := --cc -O3 --trace
+LDFLAGS := -L$(abspath ../../../../lib/simbricks/nicif) -L$(abspath ../../../../lib)
+# VFLAGS := --cc -O3 --trace
+VFLAGS := --cc -O3
 VFLAGS += +define+RANDOMIZE_GARBAGE_ASSIGN
 VFLAGS += +define+RANDOMIZE_REG_INIT
 VFLAGS += +define+RANDOMIZE_MEM_INIT
@@ -34,6 +30,7 @@ $(verilator_src): $(vsrcs)
 	    -CFLAGS "$(CFLAGS)" \
 	    --top-module VTAShell \
 	    --Mdir $(verilator_dir) \
+	    -LDFLAGS "$(LDFLAGS) -lnicif -lsimbricks" \
 		"-I$(CHISEL_BUILD_DIR)" \
 	    $(vsrcs) --exe $(abspath $(srcs))
 
@@ -42,7 +39,8 @@ $(bin_vta): $(srcs) $(vsrcs) $(verilator_src)
 	cp $(verilator_dir)/VVTAShell $@
 
 $(vsrcs):
-	$(MAKE) -C ../hardware/ verilog CONFIG=DefaultProtoaccConfig
+	$(MAKE) -C ../hardware/chisel/ verilog CONFIG=DefaultProtoaccConfig
 clean:
-	rm -rf $(bin_vta) $(verilator_dir) ../build
+	rm -rf $(verilator_dir)
+
 .PHONY: all clean
