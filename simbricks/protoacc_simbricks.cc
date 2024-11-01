@@ -21,10 +21,10 @@
  * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-#define AXI_R_DEBUG
-#define AXI_W_DEBUG
-#define AXIL_R_DEBUG
-#define AXIL_W_DEBUG
+// #define AXI_R_DEBUG
+// #define AXI_W_DEBUG
+// #define AXIL_R_DEBUG
+// #define AXIL_W_DEBUG
 
 #include <signal.h>
 #include <verilated.h>
@@ -35,6 +35,8 @@
 #include "simbricks/pcie/proto.h"
 
 // #define TRACE_ENABLED
+
+#define DEBUG_PRINT(...)
 
 #include <cstdlib>
 #include <iostream>
@@ -168,6 +170,15 @@ void h2d_writecomp(volatile struct SimbricksProtoPcieH2DWritecomp &writecomp) {
   dma_write->write_done(writecomp.req_id);
 }
 
+void force_update_time(volatile struct SimbricksProtoPcieH2DForceupadte &msg) {
+  uint64_t force_update_time = msg.payload;
+  main_time = force_update_time;
+  // send the sync to the peer, that my time is updated
+  printf("force_update_time: %lu\n", main_time);
+  while(SimbricksPcieIfD2HOutSync(&nicif.pcie, main_time)<0);
+  return;
+}
+
 void poll_h2d() {
   volatile union SimbricksProtoPcieH2D *msg =
       SimbricksPcieIfH2DInPoll(&nicif.pcie, main_time);
@@ -179,27 +190,27 @@ void poll_h2d() {
   type = SimbricksPcieIfH2DInType(&nicif.pcie, msg);
   switch (type) {
     case SIMBRICKS_PROTO_PCIE_H2D_MSG_READ:
-      printf("poll_h2d: read\n");
+      DEBUG_PRINT("poll_h2d: read\n");
       h2d_read(msg->read);
       break;
 
     case SIMBRICKS_PROTO_PCIE_H2D_MSG_WRITE:
-      printf("poll_h2d: write\n");
+      DEBUG_PRINT("poll_h2d: write\n");
       h2d_write(msg->write, false);
       break;
 
     case SIMBRICKS_PROTO_PCIE_H2D_MSG_WRITE_POSTED:
-      printf("poll_h2d: write_posted\n");
+      DEBUG_PRINT("poll_h2d: write_posted\n");
       h2d_write(msg->write, true);
       break;
 
     case SIMBRICKS_PROTO_PCIE_H2D_MSG_READCOMP:
-      printf("poll_h2d: readcomp \n");
+      DEBUG_PRINT("poll_h2d: readcomp\n");
       h2d_readcomp(msg->readcomp);
       break;
 
     case SIMBRICKS_PROTO_PCIE_H2D_MSG_WRITECOMP:
-      printf("poll_h2d: writecomp\n");
+      DEBUG_PRINT("poll_h2d: writecomp\n");
       h2d_writecomp(msg->writecomp);
       break;
 
@@ -210,6 +221,11 @@ void poll_h2d() {
     case SIMBRICKS_PROTO_MSG_TYPE_TERMINATE:
       std::cerr << "poll_h2d: peer terminated\n";
       terminated = true;
+      break;
+
+    case SIMBRICKS_PROTO_PCIE_H2D_MSG_FORCESYNC_TIME:
+      std::cerr << "poll_h2d: forcesync\n";
+      force_update_time(msg->forceupdate);
       break;
 
     default:
@@ -243,7 +259,7 @@ int main(int argc, char *argv[]) {
   if (argc >= 7)
     clock_period = 1000000ULL / strtoull(argv[6], NULL, 0);
 
-  printf("main_time = %lu\n", main_time);
+  // printf("main_time = %lu\n", main_time);
   struct SimbricksProtoPcieDevIntro dev_intro;
   memset(&dev_intro, 0, sizeof(dev_intro));
 
@@ -259,7 +275,6 @@ int main(int argc, char *argv[]) {
   pcie_params.sock_path = argv[1];
 
 // argv[2] is shared memory path
-  printf("main_time = %lu\n", main_time);
 
   if (SimbricksNicIfInit(&nicif, argv[2], nullptr, &pcie_params, &dev_intro)) {
     return EXIT_FAILURE;
@@ -306,7 +321,7 @@ int main(int argc, char *argv[]) {
   /* main simulation loop */
   while (!exiting) {
     int done;
-    printf("main_time = %lu\n", main_time/1000);
+    // printf("main_time = %lu\n", main_time);
     do {
       done = 1;
       if (SimbricksPcieIfD2HOutSync(&nicif.pcie, main_time) < 0) {
@@ -314,7 +329,6 @@ int main(int argc, char *argv[]) {
                   << ")" << "\n";
         done = 0;
       }
-
       if (SimbricksNetIfOutSync(&nicif.net, main_time) < 0) {
         std::cerr << "warn: SimbricksNetIfOutSync failed (t=" << main_time
                   << ")" << "\n";

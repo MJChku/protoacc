@@ -303,7 +303,7 @@ class SerFieldHandler(logPrefix: String)(implicit p: Parameters) extends Module 
       }
     }
     is (S_STRING_GETPTR) {
-      ProtoaccLogger.logInfo(logPrefix + " S_STRING_GETPTR: loading stringptr\n")
+      // ProtoaccLogger.logInfo(logPrefix + " S_STRING_GETPTR: loading stringptr\n")
 
       io.memread.req.bits.addr := src_data_addr_reg
       io.memread.req.bits.size := cpp_size_log2_reg
@@ -317,7 +317,7 @@ class SerFieldHandler(logPrefix: String)(implicit p: Parameters) extends Module 
       }
     }
     is (S_STRING_GETHEADER1) {
-      ProtoaccLogger.logInfo(logPrefix + " S_STRING_GETHEADER1: stringptr resp, header read1\n")
+      // ProtoaccLogger.logInfo(logPrefix + " S_STRING_GETHEADER1: stringptr resp, header read1\n")
 
       io.memread.resp.ready := io.memread.req.ready
       io.memread.req.valid := io.memread.resp.valid
@@ -336,7 +336,7 @@ class SerFieldHandler(logPrefix: String)(implicit p: Parameters) extends Module 
       }
     }
     is (S_STRING_GETHEADER2) {
-      ProtoaccLogger.logInfo(logPrefix + " S_STRING_GETHEADER2: get header pt 2\n")
+      // ProtoaccLogger.logInfo(logPrefix + " S_STRING_GETHEADER2: get header pt 2\n")
       io.memread.req.valid := true.B
       io.memread.req.bits.addr := string_obj_ptr_reg + 8.U
       io.memread.req.bits.size := 3.U
@@ -348,7 +348,7 @@ class SerFieldHandler(logPrefix: String)(implicit p: Parameters) extends Module 
       }
     }
     is (S_STRING_RECVHEADER1) {
-      ProtoaccLogger.logInfo(logPrefix + " S_STRING_RECVHEADER1: recv header pt 1\n")
+      // ProtoaccLogger.logInfo(logPrefix + " S_STRING_RECVHEADER1: recv header pt 1\n")
 
       io.memread.resp.ready := true.B
       when (io.memread.resp.valid) {
@@ -361,7 +361,7 @@ class SerFieldHandler(logPrefix: String)(implicit p: Parameters) extends Module 
     }
     is (S_STRING_RECVHEADER2) {
       io.memread.resp.ready := true.B
-      ProtoaccLogger.logInfo(logPrefix + " S_STRING_RECVHEADER2: recv header pt 2\n")
+      // ProtoaccLogger.logInfo(logPrefix + " S_STRING_RECVHEADER2: recv header pt 2\n")
 
 
 
@@ -381,18 +381,18 @@ class SerFieldHandler(logPrefix: String)(implicit p: Parameters) extends Module 
       len_encoder.io.inputData := base_len
 
       when (io.memread.resp.valid) {
-        ProtoaccLogger.logInfo(logPrefix + " S_STRING_RECVHEADER2: got string header pt2 value: 0x%x\n",
+        ProtoaccLogger.logInfo2(logPrefix + " S_STRING_RECVHEADER2: got string header pt2 value: 0x%x\n",
           io.memread.resp.bits.data)
-        ProtoaccLogger.logInfo(logPrefix + "S_STRING_RECVHEADER2: base_addr_bytes: %x\n", base_addr_bytes)
-        ProtoaccLogger.logInfo(logPrefix + "S_STRING_RECVHEADER2: base_len: %x\n", base_len)
-        ProtoaccLogger.logInfo(logPrefix + "S_STRING_RECVHEADER2: base_addr_start_index: %x\n", base_addr_start_index)
-        ProtoaccLogger.logInfo(logPrefix + "S_STRING_RECVHEADER2: aligned_loadlen: %x\n", aligned_loadlen)
-        ProtoaccLogger.logInfo(logPrefix + "S_STRING_RECVHEADER2: base_addr_end_index: %x\n", base_addr_end_index)
-        ProtoaccLogger.logInfo(logPrefix + "S_STRING_RECVHEADER2: base_addr_end_index_inclusive: %x\n", base_addr_end_index_inclusive)
-        ProtoaccLogger.logInfo(logPrefix + "S_STRING_RECVHEADER2: extra_word: %x\n", extra_word)
-        ProtoaccLogger.logInfo(logPrefix + "S_STRING_RECVHEADER2: base_addr_bytes_aligned: %x\n", base_addr_bytes_aligned)
-        ProtoaccLogger.logInfo(logPrefix + "S_STRING_RECVHEADER2: words_to_load: %x\n", words_to_load)
-        ProtoaccLogger.logInfo(logPrefix + "S_STRING_RECVHEADER2: words_to_load_minus_one: %x\n", words_to_load_minus_one)
+        ProtoaccLogger.logInfo2(logPrefix + "S_STRING_RECVHEADER2: base_addr_bytes: %x\n", base_addr_bytes)
+        ProtoaccLogger.logInfo2(logPrefix + "S_STRING_RECVHEADER2: base_len: %x\n", base_len)
+        ProtoaccLogger.logInfo2(logPrefix + "S_STRING_RECVHEADER2: base_addr_start_index: %x\n", base_addr_start_index)
+        ProtoaccLogger.logInfo2(logPrefix + "S_STRING_RECVHEADER2: aligned_loadlen: %x\n", aligned_loadlen)
+        ProtoaccLogger.logInfo2(logPrefix + "S_STRING_RECVHEADER2: base_addr_end_index: %x\n", base_addr_end_index)
+        ProtoaccLogger.logInfo2(logPrefix + "S_STRING_RECVHEADER2: base_addr_end_index_inclusive: %x\n", base_addr_end_index_inclusive)
+        ProtoaccLogger.logInfo2(logPrefix + "S_STRING_RECVHEADER2: extra_word: %x\n", extra_word)
+        ProtoaccLogger.logInfo2(logPrefix + "S_STRING_RECVHEADER2: base_addr_bytes_aligned: %x\n", base_addr_bytes_aligned)
+        ProtoaccLogger.logInfo2(logPrefix + "S_STRING_RECVHEADER2: words_to_load: %x\n", words_to_load)
+        ProtoaccLogger.logInfo2(logPrefix + "S_STRING_RECVHEADER2: words_to_load_minus_one: %x\n", words_to_load_minus_one)
 
 
 

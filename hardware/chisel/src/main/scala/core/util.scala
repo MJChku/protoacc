@@ -25,6 +25,19 @@ object ProtoaccLogger {
 
   def logInfo(format: String, args: Bits*)(implicit p: Parameters): Unit = {
     val loginfo_cycles = RegInit(0.U(64.W))
+    // loginfo_cycles := loginfo_cycles + 1.U
+
+    // if (p(CoreKey).ProtoAccelPrintfEnable) {
+    //   printf("cy: %d, ", loginfo_cycles)
+    //   printf(Printable.pack(format, args:_*))
+    // } else {
+    //   printf("cy: %d, ", loginfo_cycles)
+    //   printf(Printable.pack(format, args:_*))
+    // }
+  }
+
+   def logInfo2(format: String, args: Bits*)(implicit p: Parameters): Unit = {
+    val loginfo_cycles = RegInit(0.U(64.W))
     loginfo_cycles := loginfo_cycles + 1.U
 
     if (p(CoreKey).ProtoAccelPrintfEnable) {

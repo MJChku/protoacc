@@ -50,6 +50,8 @@ class VCRMaster(implicit p: Parameters) extends VCRBase {
   val vp = p(ShellKey).vcrParams
   val mp = p(ShellKey).memParams
   val launch = Output(Bool())
+  val launch2 = Output(Bool())
+  val launch_consumed = Input(Bool())
   val finish = Input(Bool())
   val ecnt = Vec(vp.nECnt, Flipped(ValidIO(UInt(vp.regBits.W))))
   val vals = Output(Vec(vp.nVals, UInt(vp.regBits.W)))
@@ -66,6 +68,8 @@ class VCRClient(implicit p: Parameters) extends VCRBase {
   val vp = p(ShellKey).vcrParams
   val mp = p(ShellKey).memParams
   val launch = Input(Bool())
+  val launch2 = Input(Bool())
+  val launch_consumed = Output(Bool())
   val finish = Output(Bool())
   val ecnt = Vec(vp.nECnt, ValidIO(UInt(vp.regBits.W)))
   val vals = Input(Vec(vp.nVals, UInt(vp.regBits.W)))
@@ -181,7 +185,14 @@ class VCR(implicit p: Parameters) extends Module {
     rdata := MuxLookup(io.host.ar.bits.addr, 0.U, reg_map)
   }
 
-  io.vcr.launch := reg(0)(0)
+  io.vcr.launch := reg(0)(0) 
+
+  when(io.vcr.launch_consumed) {
+    reg(0) := reg(0) & "b_11111110".U
+  }
+
+  // 8th bits for different control
+  io.vcr.launch2 := reg(0)(7)
 
   for (i <- 0 until vp.nVals) {
     io.vcr.vals(i) := reg(vo + i)
