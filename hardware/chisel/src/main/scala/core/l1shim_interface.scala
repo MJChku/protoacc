@@ -41,16 +41,16 @@ class L1ReadMemHelper(
     val userif = Flipped(new L1MemHelperBundle)
     val vme_rd = new VMEReadMaster
   })
-  //VME doesnt stop on not ready
+  // NOTE: VME doesnt stop on not ready for read response!
 
   // Define request and response queues as DecoupledIO interfaces
   val reqQueue = Wire(Flipped(Decoupled(new L1ReqInternal)))
-  val outstandingReqQueue = Module(new Queue(new L1ReqInternal, 16)).io // Queue for outstanding requests
+  val outstandingReqQueue = Module(new Queue(new L1ReqInternal, 160)).io // Queue for outstanding requests
   val respQueue = Wire(Decoupled(new L1RespInternal))
 
   // Handle request queueing
   if (queueRequests) {
-    val queue = Module(new Queue(new L1ReqInternal, 4))
+    val queue = Module(new Queue(new L1ReqInternal, 160))
     queue.io.enq <> io.userif.req
     reqQueue <> queue.io.deq
   } else {
@@ -59,7 +59,7 @@ class L1ReadMemHelper(
 
   // Handle response queueing
   if (queueResponses) {
-    val queue = Module(new Queue(new L1RespInternal, 4))
+    val queue = Module(new Queue(new L1RespInternal, 160))
     queue.io.enq <> respQueue
     io.userif.resp <> queue.io.deq
   } else {
@@ -72,7 +72,7 @@ class L1ReadMemHelper(
   io.userif.no_memops_inflight := (outstandingReads === returnedReads)
 
   // Define two queues to store 64-bit vme_rd data, wrapped in a Vec
-  val vmeDataQueues = VecInit(Seq.fill(2)(Module(new Queue(UInt(64.W), 8)).io))
+  val vmeDataQueues = VecInit(Seq.fill(2)(Module(new Queue(UInt(64.W), 16)).io))
   
   // Register to track which queue to push to and which to pop from
   val activeQueue = RegInit(0.U(1.W)) // 0 or 1, indicating which queue to push to or pop from
@@ -90,18 +90,21 @@ class L1ReadMemHelper(
     Mux(size === 4.U, 1.U, 0.U) // If size = 4 (16 bytes), len = 1 (2 beats), else len = 0 (1 beat)
   }
 
-  val issue_submessage_request_address = DecoupledHelper(
+  val issue_mem_request_address = DecoupledHelper(
     reqQueue.valid,
-    (outstandingReads - returnedReads) < 4.U,
+    (outstandingReads - returnedReads) < 16.U,
     io.vme_rd.cmd.ready
   )
   // Handle read requests
-  io.vme_rd.cmd.valid := issue_submessage_request_address.fire(io.vme_rd.cmd.ready)
-  reqQueue.ready := issue_submessage_request_address.fire(reqQueue.valid)
+  io.vme_rd.cmd.valid := issue_mem_request_address.fire(io.vme_rd.cmd.ready)
+  reqQueue.ready := issue_mem_request_address.fire(reqQueue.valid)
 
   io.vme_rd.cmd.bits.addr := reqQueue.bits.addr
   io.vme_rd.cmd.bits.len := calcAxiLen(reqQueue.bits.size)
+  // the tag is to identify the requests not the client 
   io.vme_rd.cmd.bits.tag := clientTag
+  io.vme_rd.cmd.bits.tag := 0.U
+  // io.vme_rd.cmd.bits.tag := outstandingReads
   // because VME doesn't stop on data resp not ready, we have to control the inflight requests
 
   when(reqQueue.fire) {
@@ -180,7 +183,7 @@ class L1ReadMemHelper(
 }
 
 
-class L1WriteMemHelper(
+class __L1WriteMemHelper(
     printInfo: String = "",
     queueRequests: Boolean = true
 )(implicit p: Parameters) extends Module {
@@ -223,5 +226,109 @@ class L1WriteMemHelper(
 
   when(io.vme_wr.cmd.fire){
     ProtoaccLogger.logInfo("[L1WriteMem] writing 128-bit data at address 0x%x with value 0x%x", reqQueue.bits.addr, reqQueue.bits.data)
+  }
+}
+
+class L1WriteMemHelper(
+    printInfo: String = "",
+    queueRequests: Boolean = true,
+    queueResponses: Boolean = true
+)(implicit p: Parameters) extends Module {
+  val io = IO(new Bundle {
+    val userif = Flipped(new L1MemHelperBundle)
+    val vme_wr = new VMEWriteMaster
+  })
+
+  // Define request and response queues
+  val reqQueue = Wire(Flipped(Decoupled(new L1ReqInternal)))
+  val outstandingReqQueue = Module(new Queue(new L1ReqInternal, 16)).io
+  val respQueue = Wire(Decoupled(new L1RespInternal))
+  
+  // Handle request queueing
+  if (queueRequests) {
+    val queue = Module(new Queue(new L1ReqInternal, 16))
+    queue.io.enq <> io.userif.req
+    reqQueue <> queue.io.deq
+  } else {
+    reqQueue <> io.userif.req
+  }
+
+    // No responses for writes
+  io.userif.resp.valid := false.B
+  io.userif.resp.bits := 0.U.asTypeOf(new L1RespInternal)
+
+  // Outstanding write operations counters
+  val totalWrites = RegInit(0.U(64.W))
+  val outstandingWrites = RegInit(0.U(64.W))
+  val returnedWrites = RegInit(0.U(64.W))
+
+  when(io.userif.req.fire){
+    totalWrites := totalWrites + 1.U
+  }
+
+  // when(queue.io.enq.fire) {
+  //     outstandingWrites := outstandingWrites + 1.U
+  //   }
+
+  io.userif.no_memops_inflight := (totalWrites === returnedWrites) 
+
+  // Default signals
+  io.vme_wr.cmd.valid := false.B
+  io.vme_wr.cmd.bits := 0.U.asTypeOf(new VMECmd)
+  io.vme_wr.data.valid := false.B
+  io.vme_wr.data.bits := 0.U.asTypeOf(new VMEWriteData)
+
+  // Helper function to calculate AXI len based on L1 request size
+  def calcAxiLen(size: UInt): UInt = {
+    Mux(size === 4.U, 1.U, 0.U) // If size = 4 (16 bytes), len = 1 (2 beats), else len = 0 (1 beat)
+  }
+
+  // Control logic to issue write commands
+  val issue_mem_request = DecoupledHelper(
+    reqQueue.valid,
+    (outstandingWrites - returnedWrites) < 16.U,
+    io.vme_wr.cmd.ready
+  )
+
+  // Issue write commands
+  io.vme_wr.cmd.valid := issue_mem_request.fire(io.vme_wr.cmd.ready)
+  reqQueue.ready := issue_mem_request.fire(reqQueue.valid)
+
+  io.vme_wr.cmd.bits.addr := reqQueue.bits.addr
+  io.vme_wr.cmd.bits.len := calcAxiLen(reqQueue.bits.size)
+  io.vme_wr.cmd.bits.tag := 0.U
+
+  outstandingReqQueue.enq.bits := reqQueue.bits
+  outstandingReqQueue.enq.valid := reqQueue.fire
+
+  when(io.vme_wr.cmd.fire) {
+    outstandingWrites := outstandingWrites + 1.U
+    ProtoaccLogger.logInfo("[L1WriteMem] fire write cmd; outstandingWrites %d\n", outstandingWrites)
+  }
+
+  // Control logic for sending write data
+  val sendData = RegInit(false.B)
+  val dataBeat = RegInit(0.U(1.W)) // 0 or 1, to track which beat we are sending
+  val currentReq = outstandingReqQueue.deq.bits
+
+  io.vme_wr.data.valid := true.B
+  io.vme_wr.data.bits.data := Mux(dataBeat === 0.U, currentReq.data(63, 0), currentReq.data(127, 64))
+  io.vme_wr.data.bits.strb := Fill(io.vme_wr.data.bits.strb.getWidth, 1.U) // All bytes valid 
+  
+  when(io.vme_wr.data.fire) {
+    when(currentReq.size === 4.U && dataBeat === 0.U) {
+      // For 128-bit writes, proceed to send the second beat
+      dataBeat := 1.U
+    }.otherwise {
+      // For other sizes or after sending both beats
+      dataBeat := 0.U
+    }
+  }
+
+  outstandingReqQueue.deq.ready := io.vme_wr.ack
+  // Handle write acknowledgments
+  when(io.vme_wr.ack) {
+    returnedWrites := returnedWrites + 1.U
+    // ProtoaccLogger.logInfo2("[L1WriteMem] received write ack; returnedWrites %d; outstandingWrites %d\n", returnedWrites, outstandingWrites)
   }
 }

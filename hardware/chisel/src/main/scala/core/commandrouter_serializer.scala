@@ -284,8 +284,8 @@ class CommandRouterSerializer()(implicit p: Parameters) extends Module {
   descriptorInfo.min_fieldno := min_fieldno
   descriptorInfo.max_fieldno := max_fieldno
 
-  // Create a Queue with depth 2
-  val descriptorQueue = Module(new Queue(new DescriptorInfo, 20))
+  // Create a Queue with depth 200
+  val descriptorQueue = Module(new Queue(new DescriptorInfo, 200))
   
   val launch_consumed = RegInit(false.B)
 
@@ -303,7 +303,7 @@ class CommandRouterSerializer()(implicit p: Parameters) extends Module {
   when(descriptorQueue.io.enq.fire){
     launch_consumed := true.B
     track_number_dispatched_parse_commands := track_number_dispatched_parse_commands + 1.U
-    ProtoaccLogger.logInfo("track_number_dispatched_parse_commands %d\n", track_number_dispatched_parse_commands)
+    ProtoaccLogger.logInfo2("track_number_dispatched_parse_commands %d\n", track_number_dispatched_parse_commands)
   }
 
   // Output logic (drive outputs from the queue when there's valid data)
@@ -329,22 +329,25 @@ class CommandRouterSerializer()(implicit p: Parameters) extends Module {
   }
   // Optional logging
   when(io.vcr.launch) {
-    ProtoaccLogger.logInfo("VCR Launch signal received, starting operation\n")
+    ProtoaccLogger.logInfo2("VCR Launch signal received, starting operation\n")
   }
 
   // Completion logic
   val operation_in_progress = track_number_dispatched_parse_commands =/= io.completed_toplevel_bufs
   val operation_done = !operation_in_progress && io.no_writes_inflight && track_number_dispatched_parse_commands > 0.U 
-
+  
   val completed_reg = RegInit(0.U(64.W))
   when(io.completed_toplevel_bufs =/= completed_reg){
     ProtoaccLogger.logInfo2("Completed level 0x%x\n", io.completed_toplevel_bufs)
     completed_reg := io.completed_toplevel_bufs
   }
-  when(operation_done) {
+  io.vcr.ecnt(0).valid := operation_done
+  io.vcr.ecnt(0).bits := completed_reg(31, 0)
+
+  when(operation_done){
+    // io.vcr.completed_msg := completed_reg(31, 0)
     ProtoaccLogger.logInfo("All operations completed\n")
   }
-
   // Signal completion to VCR
-  io.vcr.finish := operation_done
+  // io.vcr.finish := operation_done
 }

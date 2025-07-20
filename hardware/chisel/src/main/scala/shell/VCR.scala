@@ -161,11 +161,19 @@ class VCR(implicit p: Parameters) extends Module {
   io.host.r.bits.resp := 0.U
 
   // this is the control register
-  when(io.vcr.finish) {
-    reg(0) := "b_10".U
-  }.elsewhen(io.host.w.fire && addr(0).U === waddr) {
+  // when(io.vcr.finish) {
+  //   reg(0) := "b_10".U
+  // }.elsewhen(io.host.w.fire && addr(0).U === waddr) {
+  //   reg(0) := wdata
+  // }
+
+  when(io.host.w.fire && addr(0).U === waddr) {
     reg(0) := wdata
   }
+  
+  // when(io.vcr.completed_msg =/= reg(1)) {
+  //   reg(1) := io.vcr.completed_msg
+  // }
 
   for (i <- 0 until vp.nECnt) {
     when(io.vcr.ecnt(i).valid) {
